@@ -11,61 +11,90 @@ def heuristic(n, target):
     return 0
 
 #create path from source to target of each node
-def make_path(path, source, target):
+def make_path(path, start_state, end_state):
     res = []
-    current = target
-    if target not in path and target != source:
+    current = end_state
+    if end_state not in path and end_state != start_state:
         return None
-    while current != source:
+    while current != start_state:
         res.append(current)
         current = path[current]
 
-    res.append(source)
+    res.append(start_state)
     res.reverse()
     return res
-    
+
 #A* search alrogithm, calculating through distance to each node finding the shortest path
-def astar(graph, source, target, heuristic):
-    #check if at target
-    if source == target:
-        return [source], 0
+def astar(graph, start_state, end_state, heuristic):
+    #Set state as tuple of two nodes
+    source1, source2 = start_state 
+    (target1, target2) = end_state
+
+    #check if already at goal
+    if start_state == end_state:
+        return [start_state], 0
     
-    #create heap queue to store nodes in path and h and g values
-    min_queue = []
-    heapq.heappush(min_queue, ((heuristic(source, target)), source))
+    #create min heap queue to store nodes in path and h and g values
+    open_list = []
+    heapq.heappush(open_list, ((heuristic(source1, target1)+heuristic(source2, target2), start_state)))
 
+    #dictionary of g value cost to states
     costs = {}
-    costs[source] = 0
+    costs[start_state] = 0
+
+    #dictionary of regression map for path
     path = {}
-    closed = set()
 
-    while min_queue:
-        #pop smallest value from min 
-        f_cost, node = heapq.heappop(min_queue)
+    #set for closed list of nodes that have been fully explored
+    closed_list = set()
 
-        #node already explored 
-        if node in closed:
+    #loop until every path has been explored or target reached
+    while open_list:
+        #pop smallest f value from open list 
+        f_cost, state = heapq.heappop(open_list)
+
+        #state already explored 
+        if state in closed_list:
             continue
 
         #reached target, return path
-        if node == target:
-            return make_path(path, source, target), costs[target]
+        if state == end_state:
+            return make_path(path, start_state, state), costs[state]
         
-        closed.add(node)
-        
-        for neighbor, weight in graph.get(node, []):
-            temp_cost = costs[node] + weight
+        #mark state as explored
+        closed_list.add(state)
 
-            if neighbor not in costs or temp_cost < costs[neighbor]:
-                costs[neighbor] = temp_cost
-                f = temp_cost + heuristic(neighbor, target)
-                heapq.heappush(min_queue, (f, neighbor))
-                path[neighbor] = node
+        #list of neighbors and weights of each state
+        neighbors1 = graph.get(state[0], []) + [(state[0], 0)]
+        neighbors2 = graph.get(state[1], []) + [(state[1], 0)]
 
+        #nested loop to avoid collisions between agents
+        for neighbor1, weight1 in neighbors1:
+            for neighbor2, weight2 in neighbors2:
+                #check if on same node
+                if neighbor1 == neighbor2:
+                    continue
+                #check if exploring same edge
+                if state[0] == neighbor2 and neighbor1 == state[1]:
+                    continue
+
+                #set new state as shortest distance of each
+                next_state = (neighbor1, neighbor2)
+
+                #total g value of operatoin
+                temp_cost = costs[state] + weight1 + weight2
+
+                #check if new path or if more efficient than previously explored path
+                if next_state not in costs or temp_cost < costs[next_state]:
+                    costs[next_state] = temp_cost
+                    f_cost = temp_cost + heuristic(neighbor1, target1)+heuristic(neighbor2, target2)
+                    heapq.heappush(open_list, (f_cost, next_state))
+                    path[next_state] = state
+
+    #all paths explored and no solution, distance to goal is infinity
     return None, float('inf')
 
-
-
+#Creating graphs
 #simple graph
 def create_graph1():
     graph = {
@@ -132,49 +161,78 @@ for node, neighbor in g7.edges():
     g7[node][neighbor]['weight'] = random.randint(1, 10)
 
 
-#convert nx graph to adj list
-def convert_to_adj(graph):
-    result = {}
-    for node in graph.nodes():
-        result[node] = []
-        for neighbor in graph.successors(node):
-            weight = graph[node][neighbor]['weight']
-            result[node].append((neighbor, weight))
-    return result
-
-#convert adjlist to nx format
-def convert_to_nx(graph):
-    nxGraph = nx.DiGraph()
-    for node in graph:
-        for neighbor, weight in graph[node]:
-            nxGraph.add_edge(node, neighbor, weight=weight)
-    return nxGraph
 
 
-def test_graph(graph, source, target):
-    nxGraph = convert_to_nx(graph)
-    try:
-        nx_cost = nx.dijkstra_path_length(nxGraph, source, target)
-    except nx.NetworkXNoPath:
-        nx_cost = float('inf')
 
-    my_path, my_cost = astar(graph, source, target, heuristic)
+#test cases with two agents:
 
-    assert my_cost == nx_cost
+def test_graph1(graph, start_state, end_state):
+    my_path, my_cost = astar(graph, start_state, end_state, heuristic)
     print(my_cost)
     return my_cost
-
 
 g1, g2, g4 = create_graph1(), create_graph2(), create_graph4()
 g3 = create_graph3()
 
-test_graph(g1, 'A', 'D')
-test_graph(g2, 'A', 'G')
-test_graph(g3, 'A', 'G')
-test_graph(g4, 'A', 'L')
-test_graph(convert_to_adj(g5), 0, 9)
-test_graph(convert_to_adj(g6), 0, 14)
-test_graph(convert_to_adj(g7), 0, 19)
+start1 = ('A', 'B')
+goal1 = ('C', 'D')
+start2 = ('A', 'B')
+goal2 = ('G', 'E')
+start3 = ('B', 'A')
+goal3 = ('G', 'D')
+start4 = ('A', 'D')
+goal4 = ('L', 'G')
+
+test_graph1(g1, start1, goal1)
+test_graph1(g2, start1, goal1)
+test_graph1(g3, start1, goal1)
+test_graph1(g4, start1, goal1)
+
+
+#single agent test case
+
+# #convert nx graph to adj list
+# def convert_to_adj(graph):
+#     result = {}
+#     for node in graph.nodes():
+#         result[node] = []
+#         for neighbor in graph.successors(node):
+#             weight = graph[node][neighbor]['weight']
+#             result[node].append((neighbor, weight))
+#     return result
+
+# #convert adjlist to nx format
+# def convert_to_nx(graph):
+#     nxGraph = nx.DiGraph()
+#     for node in graph:
+#         for neighbor, weight in graph[node]:
+#             nxGraph.add_edge(node, neighbor, weight=weight)
+#     return nxGraph
+
+# def test_graph2(graph, source, target):
+#     nxGraph = convert_to_nx(graph)
+#     try:
+#         nx_cost = nx.dijkstra_path_length(nxGraph, source, target)
+#     except nx.NetworkXNoPath:
+#         nx_cost = float('inf')
+
+#     my_path, my_cost = astar(graph, source, target, heuristic)
+
+#     assert my_cost == nx_cost
+#     print(my_cost)
+#     return my_cost
+
+
+# g1, g2, g4 = create_graph1(), create_graph2(), create_graph4()
+# g3 = create_graph3()
+
+# test_graph1(g1, 'A', 'D')
+# test_graph1(g2, 'A', 'G')
+# test_graph1(g3, 'A', 'G')
+# test_graph1(g4, 'A', 'L')
+# test_graph1(convert_to_adj(g5), 0, 9)
+# test_graph1(convert_to_adj(g6), 0, 14)
+# test_graph1(convert_to_adj(g7), 0, 19)
 
 
 
